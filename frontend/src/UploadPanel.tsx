@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 
 type Status = { msg: string; ok: boolean } | null
 
-export default function UploadPanel({ apiUrl }: { apiUrl: string }) {
+export default function UploadPanel({ apiUrl, token }: { apiUrl: string; token: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [progress, setProgress] = useState(0)
   const [status,   setStatus]   = useState<Status>(null)
@@ -16,7 +16,11 @@ export default function UploadPanel({ apiUrl }: { apiUrl: string }) {
     setProgress(0)
 
     try {
-      const res  = await fetch(`${apiUrl}/presign?filename=${encodeURIComponent(file.name)}`)
+      // Cognito JWT を Authorization ヘッダーに付加して署名URL取得
+      const res = await fetch(`${apiUrl}/presign?filename=${encodeURIComponent(file.name)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error(`presign failed: ${res.status}`)
       const { url } = await res.json() as { url: string }
 
       await new Promise<void>((resolve, reject) => {
@@ -43,17 +47,17 @@ export default function UploadPanel({ apiUrl }: { apiUrl: string }) {
     <div>
       <h3 style={{ marginBottom: 8 }}>MP4 アップロード（オフライン処理）</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <input ref={inputRef} type="file" accept="video/mp4" disabled={busy} />
+        <input ref={inputRef} type="file" accept="video/mp4" disabled={busy || !token} />
         <button
           onClick={upload}
-          disabled={busy}
+          disabled={busy || !token}
           style={{
             padding: '6px 16px',
-            background: busy ? '#9ca3af' : '#8b5cf6',
+            background: busy || !token ? '#9ca3af' : '#8b5cf6',
             color: '#fff',
             border: 'none',
             borderRadius: 4,
-            cursor: busy ? 'not-allowed' : 'pointer',
+            cursor: busy || !token ? 'not-allowed' : 'pointer',
           }}
         >
           {busy ? 'アップロード中...' : 'アップロード'}

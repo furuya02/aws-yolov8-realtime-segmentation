@@ -16,7 +16,7 @@ sudo systemctl restart nginx
 
 # Python 依存パッケージ（DLAMI の pytorch conda 環境を使用）
 source /opt/conda/bin/activate pytorch
-pip install --quiet ultralytics websockets boto3 "fastapi[standard]" uvicorn
+pip install --quiet ultralytics websockets boto3 "fastapi[standard]" uvicorn "python-jose[cryptography]" requests
 
 # YOLOv8 モデルをダウンロード（初回のみ）
 python -c "from ultralytics import YOLO; YOLO('yolov8n-seg.pt')"
@@ -27,4 +27,6 @@ echo "サーバー起動コマンド:"
 echo "  source /opt/conda/bin/activate pytorch"
 echo "  export SQS_QUEUE_URL=<CDK output の QueueUrl>"
 echo "  export S3_BUCKET_NAME=<CDK output の BucketName>"
+echo "  export COGNITO_USER_POOL_ID=<CDK output の UserPoolId>"
+echo "  export COGNITO_APP_CLIENT_ID=<CDK output の UserPoolClientId>"
 echo "  python ~/app/server/main.py"

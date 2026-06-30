@@ -6,8 +6,8 @@ Real-time YOLOv8 instance segmentation server.
   - MP4:   SQS → S3 からダウンロードして処理
 
 出力:
-  - WebSocket (port 8765): 処理済みフレームを JPEG で全クライアントにブロードキャスト
-  - FastAPI   (port 8080): /presign エンドポイントでブラウザからの S3 直接 PUT 用署名URL発行
+  - WebSocket (port 8765): JWT 認証済みクライアントへ JPEG フレームをブロードキャスト
+  - FastAPI   (port 8080): /presign エンドポイント（JWT 認証必須）でブラウザ→S3 直接 PUT 用署名URL発行
 """
 
 import asyncio
@@ -16,29 +16,38 @@ import json
 import os
 import queue
 import threading
+from urllib.parse import urlparse, parse_qs
 
 import boto3
 import cv2
 import numpy as np
+import requests
 import uvicorn
 import websockets
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from ultralytics import YOLO
 
 # ── 設定 ──────────────────────────────────────────────────────────────────────
-RTMP_URL   = os.getenv("RTMP_URL",   "rtmp://localhost/live/stream")
-SQS_URL    = os.environ["SQS_QUEUE_URL"]
-BUCKET     = os.environ["S3_BUCKET_NAME"]
-WS_PORT    = int(os.getenv("WS_PORT",  "8765"))
-API_PORT   = int(os.getenv("API_PORT", "8080"))
-REGION     = os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
-MODEL_PATH = os.getenv("MODEL_PATH", "yolov8n-seg.pt")
+RTMP_URL      = os.getenv("RTMP_URL",   "rtmp://localhost/live/stream")
+SQS_URL       = os.environ["SQS_QUEUE_URL"]
+BUCKET        = os.environ["S3_BUCKET_NAME"]
+USER_POOL_ID  = os.environ["COGNITO_USER_POOL_ID"]
+APP_CLIENT_ID = os.environ["COGNITO_APP_CLIENT_ID"]
+WS_PORT       = int(os.getenv("WS_PORT",  "8765"))
+API_PORT      = int(os.getenv("API_PORT", "8080"))
+REGION        = os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
+MODEL_PATH    = os.getenv("MODEL_PATH", "yolov8n-seg.pt")
+
+JWKS_URL = f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}/.well-known/jwks.json"
 
 # ── グローバル ─────────────────────────────────────────────────────────────────
-model    = YOLO(MODEL_PATH)
+model     = YOLO(MODEL_PATH)
 clients: set = set()
-frame_q  = queue.Queue(maxsize=30)
+frame_q   = queue.Queue(maxsize=30)
+_jwks: dict | None = None
 
 # YOLOv8 クラスカラーパレット（20色）
 COLORS = [
@@ -48,6 +57,21 @@ COLORS = [
     (52,  69,  147),(100, 115, 255), (0,   24,  236), (132, 56,  255),
     (82,  0,   133),(203, 56,  255), (255, 149, 200), (255, 55,  199),
 ]
+
+# ── JWT 検証 ──────────────────────────────────────────────────────────────────
+def get_jwks() -> dict:
+    global _jwks
+    if _jwks is None:
+        _jwks = requests.get(JWKS_URL, timeout=10).json()
+    return _jwks
+
+def verify_token(token: str) -> dict:
+    jwks = get_jwks()
+    header = jwt.get_unverified_header(token)
+    key = next((k for k in jwks["keys"] if k["kid"] == header["kid"]), None)
+    if key is None:
+        raise JWTError("Unknown kid")
+    return jwt.decode(token, key, algorithms=["RS256"], audience=APP_CLIENT_ID)
 
 # ── YOLOv8 推論 & マスク描画 ──────────────────────────────────────────────────
 def process_frame(frame: np.ndarray) -> np.ndarray:
@@ -86,6 +110,18 @@ async def broadcast_loop():
         clients -= dead
 
 async def ws_handler(websocket):
+    # JWT をクエリパラメータから取得して検証
+    qs = parse_qs(urlparse(websocket.path).query)
+    token_list = qs.get("token", [])
+    if not token_list:
+        await websocket.close(1008, "Token required")
+        return
+    try:
+        verify_token(token_list[0])
+    except Exception:
+        await websocket.close(1008, "Invalid token")
+        return
+
     clients.add(websocket)
     try:
         async for _ in websocket:
@@ -128,14 +164,22 @@ def mp4_worker():
 
             sqs.delete_message(QueueUrl=SQS_URL, ReceiptHandle=msg["ReceiptHandle"])
 
-# ── FastAPI: S3 署名URL発行 ───────────────────────────────────────────────────
+# ── FastAPI: S3 署名URL発行（JWT 認証必須） ───────────────────────────────────
 api = FastAPI()
 api.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
+_bearer = HTTPBearer()
+
+def require_auth(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
+    try:
+        return verify_token(credentials.credentials)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
 @api.get("/presign")
-def presign(filename: str):
+def presign(filename: str, _: dict = Depends(require_auth)):
     s3  = boto3.client("s3", region_name=REGION)
     url = s3.generate_presigned_url(
         "put_object",

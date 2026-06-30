@@ -17,14 +17,17 @@ const STATE_COLOR: Record<ReadyState, string> = {
   [ReadyState.UNINSTANTIATED]:'#6b7280',
 }
 
-export default function VideoCanvas({ wsUrl }: { wsUrl: string }) {
-  const canvasRef  = useRef<HTMLCanvasElement>(null)
-  const [active, setActive]   = useState(false)
-  const [fps,    setFps]      = useState(0)
+export default function VideoCanvas({ wsUrl, token }: { wsUrl: string; token: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [active, setActive] = useState(false)
+  const [fps,    setFps]    = useState(0)
   const fpsRef = useRef({ count: 0, ts: Date.now() })
 
+  // JWT をクエリパラメータとして付加
+  const wsUrlWithToken = token ? `${wsUrl}?token=${token}` : null
+
   const { lastMessage, readyState } = useWebSocket(
-    active ? wsUrl : null,
+    active && wsUrlWithToken ? wsUrlWithToken : null,
     { shouldReconnect: () => true },
   )
 
@@ -58,13 +61,15 @@ export default function VideoCanvas({ wsUrl }: { wsUrl: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
         <button
           onClick={() => setActive(v => !v)}
+          disabled={!token}
           style={{
             padding: '6px 16px',
             background: active ? '#ef4444' : '#3b82f6',
             color: '#fff',
             border: 'none',
             borderRadius: 4,
-            cursor: 'pointer',
+            cursor: token ? 'pointer' : 'not-allowed',
+            opacity: token ? 1 : 0.5,
           }}
         >
           {active ? '切断' : 'ライブ接続'}

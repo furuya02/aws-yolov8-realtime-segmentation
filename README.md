@@ -46,6 +46,17 @@ Note the outputs:
 - `BucketName` — S3 bucket for MP4 uploads
 - `QueueUrl` — SQS queue URL
 - `KeyPairId` — EC2 key pair ID
+- `UserPoolId` — Cognito User Pool ID
+- `UserPoolClientId` — Cognito App Client ID
+
+Create a user (admin operation):
+```bash
+aws cognito-idp admin-create-user \
+  --user-pool-id <UserPoolId> \
+  --username user@example.com \
+  --temporary-password Temp1234 \
+  --region ap-northeast-1
+```
 
 Retrieve the private key:
 ```bash
@@ -76,14 +87,20 @@ bash ~/app/scripts/setup_ec2.sh
 source /opt/conda/bin/activate pytorch
 export SQS_QUEUE_URL=<QueueUrl>
 export S3_BUCKET_NAME=<BucketName>
+export COGNITO_USER_POOL_ID=<UserPoolId>
+export COGNITO_APP_CLIENT_ID=<UserPoolClientId>
 python ~/app/server/main.py
 ```
 
-### 4. Start the frontend (local PC)
+### 4. Configure and start the frontend (local PC)
 
 ```bash
 cd frontend
-echo "VITE_EC2_IP=<PublicIp>" > .env.local
+cat > .env.local << EOF
+VITE_EC2_IP=<PublicIp>
+VITE_COGNITO_USER_POOL_ID=<UserPoolId>
+VITE_COGNITO_CLIENT_ID=<UserPoolClientId>
+EOF
 pnpm install
 pnpm dev
 # Open http://localhost:3000

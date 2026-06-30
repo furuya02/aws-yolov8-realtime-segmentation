@@ -5,3 +5,5 @@ boto3
 fastapi
 uvicorn[standard]
 numpy
+python-jose[cryptography]
+requests

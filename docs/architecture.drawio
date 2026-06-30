@@ -1,0 +1,107 @@
+<mxfile host="app.diagrams.net" version="21.0.0">
+  <diagram id="yolov8-arch" name="Architecture">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============ ブラウザ / PC (左側) ============ -->
+        <mxCell id="browser" value="&lt;b&gt;Browser&lt;/b&gt;&lt;br&gt;React + Amplify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="30" y="210" width="130" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="pc" value="&lt;b&gt;PC&lt;/b&gt;&lt;br&gt;FFmpeg" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="30" y="400" width="130" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ============ AWS Cloud ============ -->
+        <mxCell id="aws_cloud" value="AWS Cloud" style="shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud_alt;container=1;collapsible=0;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="10" width="990" height="680" as="geometry" />
+        </mxCell>
+
+        <!-- Region -->
+        <mxCell id="region" value="ap-northeast-1" style="shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_region;container=1;collapsible=0;strokeColor=#00A4A6;fillColor=none;dashed=1;verticalAlign=top;align=left;spacingLeft=30;fontColor=#00A4A6;fontSize=11;" vertex="1" parent="aws_cloud">
+          <mxGeometry x="20" y="50" width="950" height="610" as="geometry" />
+        </mxCell>
+
+        <!-- Cognito User Pool -->
+        <mxCell id="cognito" value="Cognito&lt;br&gt;User Pool" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.cognito;" vertex="1" parent="region">
+          <mxGeometry x="30" y="60" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- S3 -->
+        <mxCell id="s3" value="S3&lt;br&gt;MP4 uploads" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#7AA116;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3;" vertex="1" parent="region">
+          <mxGeometry x="260" y="60" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- SQS -->
+        <mxCell id="sqs" value="SQS&lt;br&gt;MP4 Queue" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#E7157B;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.sqs;" vertex="1" parent="region">
+          <mxGeometry x="490" y="60" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- IAM Role -->
+        <mxCell id="iam" value="IAM Role" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#DD344C;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.identity_and_access_management;" vertex="1" parent="region">
+          <mxGeometry x="720" y="60" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Security Group (EC2 container) -->
+        <mxCell id="ec2_sg" value="Security Group" style="shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_security_group;container=1;collapsible=0;strokeColor=#DF3312;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#DF3312;fontSize=11;" vertex="1" parent="region">
+          <mxGeometry x="30" y="210" width="880" height="370" as="geometry" />
+        </mxCell>
+
+        <!-- EC2 Instance icon -->
+        <mxCell id="ec2" value="EC2 g4dn.xlarge&lt;br&gt;NVIDIA T4 GPU" style="sketch=0;points=[[0,0,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],[1,0,0],[0,1,0],[0.25,1,0],[0.5,1,0],[0.75,1,0],[1,1,0],[0,0.25,0],[0,0.5,0],[0,0.75,0],[1,0.25,0],[1,0.5,0],[1,0.75,0]];outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=#ED7100;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2;" vertex="1" parent="ec2_sg">
+          <mxGeometry x="40" y="140" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- EC2 detail box -->
+        <mxCell id="ec2_detail" value="&lt;font style=&apos;font-size:11px&apos;&gt;&lt;b&gt;nginx-rtmp&lt;/b&gt;  :1935&lt;br&gt;&lt;b&gt;YOLOv8-seg&lt;/b&gt;  GPU推論・マスク色付け&lt;br&gt;&lt;b&gt;WebSocket Server&lt;/b&gt;  :8765  (JWT検証)&lt;br&gt;&lt;b&gt;FastAPI&lt;/b&gt;  :8080  (presign URL / JWT検証)&lt;/font&gt;" style="text;html=1;strokeColor=#ED7100;fillColor=#FFF4E6;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;rounded=1;fontSize=11;" vertex="1" parent="ec2_sg">
+          <mxGeometry x="150" y="120" width="380" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ============ 矢印 (parent=1) ============ -->
+
+        <!-- ① Browser → Cognito: ログイン -->
+        <mxCell id="e1" value="① ログイン (HTTPS)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#DD344C;strokeWidth=2;fontColor=#DD344C;fontSize=10;endArrow=classic;" edge="1" source="browser" target="cognito" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ② Browser → EC2: WebSocket + JWT -->
+        <mxCell id="e2" value="② WebSocket + JWT (8765)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#1565C0;strokeWidth=2;fontColor=#1565C0;fontSize=10;endArrow=classic;" edge="1" source="browser" target="ec2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ③ Browser → S3: MP4 Upload -->
+        <mxCell id="e3" value="③ MP4 Upload (Presigned URL)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0;entryY=1;entryDx=0;entryDy=0;strokeColor=#2E7D32;strokeWidth=2;fontColor=#2E7D32;fontSize=10;endArrow=classic;" edge="1" source="browser" target="s3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ④ PC → EC2: RTMP -->
+        <mxCell id="e4" value="④ RTMP ストリーム (1935)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;strokeColor=#ED7100;strokeWidth=2;fontColor=#ED7100;fontSize=10;endArrow=classic;" edge="1" source="pc" target="ec2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- S3 → SQS: Event Notification (dashed) -->
+        <mxCell id="e5" value="S3 Event" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#666666;strokeWidth=1;fontColor=#666666;fontSize=10;dashed=1;endArrow=classic;" edge="1" source="s3" target="sqs" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- EC2 → SQS: Poll (dashed) -->
+        <mxCell id="e6" value="⑤ SQS Poll" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.7;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#666666;strokeWidth=1;fontColor=#666666;fontSize=10;dashed=1;endArrow=classic;" edge="1" source="ec2" target="sqs" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- EC2 → S3: Download (dashed) -->
+        <mxCell id="e7" value="MP4 Download" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.3;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#7AA116;strokeWidth=1;fontColor=#7AA116;fontSize=10;dashed=1;endArrow=classic;" edge="1" source="ec2" target="s3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============ 凡例 ============ -->
+        <mxCell id="legend" value="&lt;b&gt;凡例&lt;/b&gt;&lt;br&gt;&lt;font color=&apos;#DD344C&apos;&gt;━━ 認証フロー&lt;/font&gt;&lt;br&gt;&lt;font color=&apos;#1565C0&apos;&gt;━━ WebSocket (映像配信)&lt;/font&gt;&lt;br&gt;&lt;font color=&apos;#2E7D32&apos;&gt;━━ MP4 Upload&lt;/font&gt;&lt;br&gt;&lt;font color=&apos;#ED7100&apos;&gt;━━ RTMP (ライブ映像)&lt;/font&gt;&lt;br&gt;&lt;font color=&apos;#666666&apos;&gt;- - AWS 内部フロー&lt;/font&gt;" style="text;html=1;strokeColor=#d1d5db;fillColor=#f9fafb;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=10;rounded=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="30" y="530" width="170" height="120" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

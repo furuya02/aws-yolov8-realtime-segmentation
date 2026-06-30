@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -11,6 +12,29 @@ export class YoloSegStack extends cdk.Stack {
     super(scope, id, props);
 
     const suffix = this.node.tryGetContext('bucket_suffix') ?? this.account;
+
+    // Cognito: ユーザー認証（管理者のみユーザー作成、メールサインイン）
+    const userPool = new cognito.UserPool(this, 'UserPool', {
+      userPoolName: `yolov8-seg-userpool-${suffix}`,
+      selfSignUpEnabled: false,
+      signInAliases: { email: true },
+      autoVerify: { email: true },
+      passwordPolicy: {
+        minLength: 8,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: false,
+      },
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
+      userPool,
+      userPoolClientName: `yolov8-seg-client-${suffix}`,
+      authFlows: { userSrp: true },
+      generateSecret: false,
+    });
 
     // S3: MP4アップロード先（ブラウザからの直接PUT用にCORS設定）
     const bucket = new s3.Bucket(this, 'Videos', {
@@ -78,9 +102,11 @@ export class YoloSegStack extends cdk.Stack {
       }],
     });
 
-    new cdk.CfnOutput(this, 'PublicIp',   { value: instance.instancePublicIp });
-    new cdk.CfnOutput(this, 'BucketName', { value: bucket.bucketName });
-    new cdk.CfnOutput(this, 'QueueUrl',   { value: queue.queueUrl });
-    new cdk.CfnOutput(this, 'KeyPairId',  { value: keyPair.keyPairId });
+    new cdk.CfnOutput(this, 'PublicIp',        { value: instance.instancePublicIp });
+    new cdk.CfnOutput(this, 'BucketName',      { value: bucket.bucketName });
+    new cdk.CfnOutput(this, 'QueueUrl',        { value: queue.queueUrl });
+    new cdk.CfnOutput(this, 'KeyPairId',       { value: keyPair.keyPairId });
+    new cdk.CfnOutput(this, 'UserPoolId',      { value: userPool.userPoolId });
+    new cdk.CfnOutput(this, 'UserPoolClientId',{ value: userPoolClient.userPoolClientId });
   }
 }
