@@ -1,0 +1,7 @@
+ultralytics
+opencv-python-headless
+websockets
+boto3
+fastapi
+uvicorn[standard]
+numpy
