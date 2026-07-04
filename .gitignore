@@ -1,6 +1,7 @@
 # CDK
 cdk/node_modules/
 cdk/cdk.out/
+cdk/cdk.out.check/
 cdk/cdk.context.json
 
 # Frontend
