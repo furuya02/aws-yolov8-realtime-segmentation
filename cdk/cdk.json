@@ -1,6 +1,7 @@
 {
   "app": "pnpm exec ts-node --prefer-ts-exts bin/app.ts",
   "context": {
+    "origin_verify_secret": "",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/aws-iam:minimizePolicies": true

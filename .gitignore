@@ -6,6 +6,7 @@ cdk/cdk.context.json
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/.env
 
 # Python
 __pycache__/

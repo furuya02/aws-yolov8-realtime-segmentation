@@ -2,7 +2,7 @@
 Real-time YOLOv8 instance segmentation server.
 
 入力:
-  - ライブ: nginx-rtmp で受信した RTMP ストリームをフレーム取得
+  - WebSocket (frame_in): ブラウザからのカメラ / MP4 フレーム
   - MP4:   SQS → S3 からダウンロードして処理
 
 出力:
@@ -19,37 +19,46 @@ import threading
 from urllib.parse import urlparse, parse_qs
 
 import boto3
+from botocore.config import Config
 import cv2
 import numpy as np
 import requests
 import uvicorn
 import websockets
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from ultralytics import YOLO
 
 # ── 設定 ──────────────────────────────────────────────────────────────────────
-RTMP_URL      = os.getenv("RTMP_URL",   "rtmp://localhost/live/stream")
 SQS_URL       = os.environ["SQS_QUEUE_URL"]
 BUCKET        = os.environ["S3_BUCKET_NAME"]
 USER_POOL_ID  = os.environ["COGNITO_USER_POOL_ID"]
 APP_CLIENT_ID = os.environ["COGNITO_APP_CLIENT_ID"]
 WS_PORT       = int(os.getenv("WS_PORT",  "8765"))
 API_PORT      = int(os.getenv("API_PORT", "8080"))
-REGION        = os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
-MODEL_PATH    = os.getenv("MODEL_PATH", "yolov8n-seg.pt")
+REGION               = os.getenv("AWS_DEFAULT_REGION", "ap-northeast-1")
+MODEL_PATH           = os.getenv("MODEL_PATH", "yolov8n-seg.pt")
+ORIGIN_VERIFY_SECRET = os.getenv("ORIGIN_VERIFY_SECRET", "")
 
 JWKS_URL = f"https://cognito-idp.{REGION}.amazonaws.com/{USER_POOL_ID}/.well-known/jwks.json"
 
 # ── グローバル ─────────────────────────────────────────────────────────────────
-model     = YOLO(MODEL_PATH)
+model      = YOLO(MODEL_PATH)
 clients: set = set()
-frame_q   = queue.Queue(maxsize=30)
+frame_q    = queue.Queue(maxsize=30)
 _jwks: dict | None = None
+mp4_active = threading.Event()  # MP4処理中はライブを一時停止
 
-# YOLOv8 クラスカラーパレット（20色）
+# クラス名ごとの色（BGR）。未登録クラスはデフォルトパレットを使用
+CLASS_COLORS: dict[str, tuple] = {
+    'KINOKO':  (0,   0,   255),  # 赤
+    'TAKENOKO':(255, 0,   0  ),  # 青
+}
+
+# デフォルトパレット（未登録クラス用）
 COLORS = [
     (255, 56, 56),  (255, 157, 151), (255, 112, 31), (255, 178, 29),
     (207, 210, 49), (72,  249, 10),  (146, 204, 23), (61,  219, 134),
@@ -82,7 +91,8 @@ def process_frame(frame: np.ndarray) -> np.ndarray:
     overlay = frame.copy()
     for i, mask_xy in enumerate(results.masks.xy):
         cls   = int(results.boxes.cls[i])
-        color = COLORS[cls % len(COLORS)]
+        name  = results.names[cls]
+        color = CLASS_COLORS.get(name, COLORS[cls % len(COLORS)])
         pts   = np.array(mask_xy, dtype=np.int32)
         cv2.fillPoly(overlay, [pts], color)
         x1, y1 = int(results.boxes.xyxy[i][0]), int(results.boxes.xyxy[i][1])
@@ -99,7 +109,7 @@ async def broadcast_loop():
         frame   = await loop.run_in_executor(None, frame_q.get)
         if not clients:
             continue
-        _, buf  = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, buf  = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
         payload = json.dumps({"type": "frame", "data": base64.b64encode(buf).decode()})
         dead    = set()
         for ws in clients.copy():
@@ -107,40 +117,55 @@ async def broadcast_loop():
                 await ws.send(payload)
             except Exception:
                 dead.add(ws)
-        clients -= dead
+        clients.difference_update(dead)
 
 async def ws_handler(websocket):
-    # JWT をクエリパラメータから取得して検証
-    qs = parse_qs(urlparse(websocket.path).query)
+    # Confused Deputy 対策: X-Origin-Verify ヘッダーを検証（secret 設定時のみ）
+    if ORIGIN_VERIFY_SECRET:
+        try:
+            incoming = websocket.request.headers["x-origin-verify"]
+        except (KeyError, AttributeError):
+            incoming = ""
+        if incoming != ORIGIN_VERIFY_SECRET:
+            await websocket.close(1008, "Forbidden")
+            return
+
+    # JWT をクエリパラメータから取得して検証（websockets 14+ は request.path）
+    raw_path = websocket.request.path if hasattr(websocket, "request") else websocket.path
+    qs = parse_qs(urlparse(raw_path).query)
     token_list = qs.get("token", [])
     if not token_list:
         await websocket.close(1008, "Token required")
         return
     try:
-        verify_token(token_list[0])
+        claims = verify_token(token_list[0])
     except Exception:
         await websocket.close(1008, "Invalid token")
         return
 
+    # streamers グループのみフレーム送信可、viewers は受信専用
+    is_streamer = "streamers" in claims.get("cognito:groups", [])
+
     clients.add(websocket)
+    loop = asyncio.get_event_loop()
     try:
-        async for _ in websocket:
-            pass
+        async for message in websocket:
+            if not is_streamer:
+                continue  # viewers はフレーム送信不可
+            try:
+                data = json.loads(message)
+                if data.get("type") == "frame_in":
+                    # ブラウザカメラからのフレームを受信して推論
+                    img_bytes = base64.b64decode(data["data"])
+                    arr   = np.frombuffer(img_bytes, dtype=np.uint8)
+                    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                    if frame is not None and not frame_q.full():
+                        processed = await loop.run_in_executor(None, process_frame, frame)
+                        frame_q.put_nowait(processed)
+            except Exception:
+                pass
     finally:
         clients.discard(websocket)
-
-# ── ライブストリーム読み取り (RTMP → frame_q) ──────────────────────────────────
-def live_reader():
-    while True:
-        cap = cv2.VideoCapture(RTMP_URL)
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            processed = process_frame(frame)
-            if not frame_q.full():
-                frame_q.put_nowait(processed)
-        cap.release()
 
 # ── MP4 ワーカー (SQS → S3 → frame_q) ────────────────────────────────────────
 def mp4_worker():
@@ -150,22 +175,34 @@ def mp4_worker():
         resp = sqs.receive_message(QueueUrl=SQS_URL, WaitTimeSeconds=10, MaxNumberOfMessages=1)
         for msg in resp.get("Messages", []):
             body  = json.loads(msg["Body"])
+            if "Records" not in body:
+                sqs.delete_message(QueueUrl=SQS_URL, ReceiptHandle=msg["ReceiptHandle"])
+                continue
             key   = body["Records"][0]["s3"]["object"]["key"]
             local = f"/tmp/{key.split('/')[-1]}"
             s3.download_file(BUCKET, key, local)
 
-            cap = cv2.VideoCapture(local)
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                frame_q.put(process_frame(frame))
-            cap.release()
+            mp4_active.set()
+            try:
+                cap = cv2.VideoCapture(local)
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    frame_q.put(process_frame(frame))
+                cap.release()
+            finally:
+                mp4_active.clear()
 
             sqs.delete_message(QueueUrl=SQS_URL, ReceiptHandle=msg["ReceiptHandle"])
 
 # ── FastAPI: S3 署名URL発行（JWT 認証必須） ───────────────────────────────────
-api = FastAPI()
+def _verify_origin_header(x_origin_verify: str | None = Header(None)):
+    """Confused Deputy 対策。ORIGIN_VERIFY_SECRET が設定されている場合のみ検証。"""
+    if ORIGIN_VERIFY_SECRET and x_origin_verify != ORIGIN_VERIFY_SECRET:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+api = FastAPI(dependencies=[Depends(_verify_origin_header)])
 api.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
@@ -178,9 +215,21 @@ def require_auth(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
+def require_streamer(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> dict:
+    claims = require_auth(credentials)
+    if "streamers" not in claims.get("cognito:groups", []):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Streamers only")
+    return claims
+
 @api.get("/presign")
-def presign(filename: str, _: dict = Depends(require_auth)):
-    s3  = boto3.client("s3", region_name=REGION)
+def presign(filename: str, _: dict = Depends(require_streamer)):
+    # グローバルエンドポイントだと 307 Redirect が発生し CORS エラーになるため
+    # リージョン固有エンドポイントを明示して SigV4 で署名する
+    s3  = boto3.client(
+        "s3", region_name=REGION,
+        endpoint_url=f"https://s3.{REGION}.amazonaws.com",
+        config=Config(signature_version="s3v4"),
+    )
     url = s3.generate_presigned_url(
         "put_object",
         Params={"Bucket": BUCKET, "Key": f"uploads/{filename}", "ContentType": "video/mp4"},
@@ -190,8 +239,7 @@ def presign(filename: str, _: dict = Depends(require_auth)):
 
 # ── エントリポイント ───────────────────────────────────────────────────────────
 async def main():
-    threading.Thread(target=live_reader, daemon=True).start()
-    threading.Thread(target=mp4_worker,  daemon=True).start()
+    threading.Thread(target=mp4_worker, daemon=True).start()
 
     asyncio.create_task(broadcast_loop())
 

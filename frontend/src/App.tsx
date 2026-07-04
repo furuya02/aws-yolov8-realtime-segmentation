@@ -5,16 +5,27 @@ import { fetchAuthSession, signOut } from 'aws-amplify/auth'
 import VideoCanvas from './VideoCanvas'
 import UploadPanel from './UploadPanel'
 
-const EC2_IP = import.meta.env.VITE_EC2_IP ?? 'localhost'
+const WS_URL  = `wss://${location.host}/ws`
+const API_URL = '/api'
+
+function decodeGroups(idToken: string): string[] {
+  try {
+    const payload = JSON.parse(atob(idToken.split('.')[1]))
+    return (payload['cognito:groups'] as string[]) ?? []
+  } catch {
+    return []
+  }
+}
 
 function Inner() {
-  const [token,  setToken]  = useState('')
-  const [wsUrl,  setWsUrl]  = useState(`ws://${EC2_IP}:8765`)
-  const [apiUrl, setApiUrl] = useState(`http://${EC2_IP}:8080`)
+  const [token,      setToken]      = useState('')
+  const [isStreamer, setIsStreamer] = useState(false)
 
   useEffect(() => {
     fetchAuthSession().then(s => {
-      setToken(s.tokens?.idToken?.toString() ?? '')
+      const idToken = s.tokens?.idToken?.toString() ?? ''
+      setToken(idToken)
+      setIsStreamer(decodeGroups(idToken).includes('streamers'))
     })
   }, [])
 
@@ -22,38 +33,27 @@ function Inner() {
     <div style={{ fontFamily: 'sans-serif', padding: 16, maxWidth: 1400 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>YOLOv8 Real-time Instance Segmentation</h2>
-        <button
-          onClick={() => signOut()}
-          style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: 4 }}
-        >
-          サインアウト
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 13, color: '#6b7280', padding: '2px 8px', background: '#f3f4f6', borderRadius: 4 }}>
+            {isStreamer ? '配信者' : '視聴者'}
+          </span>
+          <button
+            onClick={() => signOut()}
+            style={{ padding: '6px 14px', cursor: 'pointer', borderRadius: 4 }}
+          >
+            サインアウト
+          </button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          WebSocket
-          <input
-            value={wsUrl}
-            onChange={e => setWsUrl(e.target.value)}
-            style={{ width: 300, padding: '4px 8px', fontFamily: 'monospace' }}
-          />
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          API
-          <input
-            value={apiUrl}
-            onChange={e => setApiUrl(e.target.value)}
-            style={{ width: 280, padding: '4px 8px', fontFamily: 'monospace' }}
-          />
-        </label>
-      </div>
+      <VideoCanvas wsUrl={WS_URL} token={token} isStreamer={isStreamer} />
 
-      <VideoCanvas wsUrl={wsUrl} token={token} />
-
-      <hr style={{ margin: '24px 0' }} />
-
-      <UploadPanel apiUrl={apiUrl} token={token} />
+      {isStreamer && (
+        <>
+          <hr style={{ margin: '24px 0' }} />
+          <UploadPanel apiUrl={API_URL} token={token} />
+        </>
+      )}
     </div>
   )
 }
