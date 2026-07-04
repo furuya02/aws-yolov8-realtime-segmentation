@@ -1,0 +1,13 @@
+[Unit]
+Description=YOLOv8-seg container (auto CPU/GPU switch)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/docker_start_auto.sh
+ExecStop=/usr/bin/docker rm -f yolov8-seg
+
+[Install]
+WantedBy=multi-user.target
