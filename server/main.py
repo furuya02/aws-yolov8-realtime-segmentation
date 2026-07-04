@@ -2,7 +2,7 @@
 Real-time YOLOv8 instance segmentation server.
 
 入力:
-  - ライブ: nginx-rtmp で受信した RTMP ストリームをフレーム取得
+  - WebSocket (frame_in): ブラウザからのカメラ / MP4 フレーム
   - MP4:   SQS → S3 からダウンロードして処理
 
 出力:
@@ -33,7 +33,6 @@ from jose import JWTError, jwt
 from ultralytics import YOLO
 
 # ── 設定 ──────────────────────────────────────────────────────────────────────
-RTMP_URL      = os.getenv("RTMP_URL",   "rtmp://localhost/live/stream")
 SQS_URL       = os.environ["SQS_QUEUE_URL"]
 BUCKET        = os.environ["S3_BUCKET_NAME"]
 USER_POOL_ID  = os.environ["COGNITO_USER_POOL_ID"]
@@ -110,7 +109,7 @@ async def broadcast_loop():
         frame   = await loop.run_in_executor(None, frame_q.get)
         if not clients:
             continue
-        _, buf  = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, buf  = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
         payload = json.dumps({"type": "frame", "data": base64.b64encode(buf).decode()})
         dead    = set()
         for ws in clients.copy():
@@ -167,21 +166,6 @@ async def ws_handler(websocket):
                 pass
     finally:
         clients.discard(websocket)
-
-# ── ライブストリーム読み取り (RTMP → frame_q) ──────────────────────────────────
-def live_reader():
-    while True:
-        cap = cv2.VideoCapture(RTMP_URL)
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            if mp4_active.is_set():
-                continue
-            processed = process_frame(frame)
-            if not frame_q.full():
-                frame_q.put_nowait(processed)
-        cap.release()
 
 # ── MP4 ワーカー (SQS → S3 → frame_q) ────────────────────────────────────────
 def mp4_worker():
@@ -255,8 +239,7 @@ def presign(filename: str, _: dict = Depends(require_streamer)):
 
 # ── エントリポイント ───────────────────────────────────────────────────────────
 async def main():
-    threading.Thread(target=live_reader, daemon=True).start()
-    threading.Thread(target=mp4_worker,  daemon=True).start()
+    threading.Thread(target=mp4_worker, daemon=True).start()
 
     asyncio.create_task(broadcast_loop())
 

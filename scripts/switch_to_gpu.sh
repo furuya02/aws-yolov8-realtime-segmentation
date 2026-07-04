@@ -1,9 +1,9 @@
 #!/bin/bash
-# GPU推論が必要なとき: t3.large → g4dn.xlarge に切り替える
+# GPU推論が必要なとき: t3.large → g5.2xlarge に切り替える
 # Usage: ./switch_to_gpu.sh [INSTANCE_ID]
 REGION=${AWS_DEFAULT_REGION:-ap-northeast-1}
 STACK_NAME=${STACK_NAME:-YoloSegStack}
-TARGET_TYPE="g4dn.xlarge"
+TARGET_TYPE="g5.2xlarge"
 
 INSTANCE_ID=${1:-$(aws ec2 describe-instances \
   --filters "Name=tag:Name,Values=${STACK_NAME}/Gpu" "Name=instance-state-name,Values=running,stopped" \
@@ -12,7 +12,7 @@ INSTANCE_ID=${1:-$(aws ec2 describe-instances \
   --region "${REGION}")}
 
 echo "インスタンス: ${INSTANCE_ID}"
-echo "変更先: ${TARGET_TYPE}  (約 \$0.71/時)"
+echo "変更先: ${TARGET_TYPE}  (約 \$1.21/時)"
 echo ""
 
 echo "[1/3] EC2 停止中..."

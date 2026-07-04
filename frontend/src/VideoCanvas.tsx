@@ -45,6 +45,17 @@ export default function VideoCanvas({ wsUrl, token, isStreamer }: Props) {
   )
 
   useEffect(() => { readyStateRef.current = readyState }, [readyState])
+
+  // 切断時に受信 canvas を黒でクリア
+  useEffect(() => {
+    if (active) return
+    const c = canvasRef.current
+    if (!c) return
+    const ctx = c.getContext('2d')
+    if (!ctx) return
+    ctx.fillStyle = '#000'
+    ctx.fillRect(0, 0, c.width, c.height)
+  }, [active])
   const sendRef = useRef(sendMessage)
   useEffect(() => { sendRef.current = sendMessage }, [sendMessage])
 
@@ -81,7 +92,7 @@ export default function VideoCanvas({ wsUrl, token, isStreamer }: Props) {
       cap.height = videoEl.videoHeight
       cap.getContext('2d')!.drawImage(videoEl, 0, 0)
       if (isStreamer && readyStateRef.current === ReadyState.OPEN) {
-        const b64 = cap.toDataURL('image/jpeg', 0.7).split(',')[1]
+        const b64 = cap.toDataURL('image/jpeg', 0.9).split(',')[1]
         sendRef.current(JSON.stringify({ type: 'frame_in', data: b64 }))
       }
     }, 100)

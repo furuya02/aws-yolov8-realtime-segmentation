@@ -91,14 +91,12 @@ export class YoloSegStack extends cdk.Stack {
     // 設定例: openssl rand -hex 16 で生成した値を cdk.json の origin_verify_secret に記入。
     const originVerifySecret: string = this.node.tryGetContext('origin_verify_secret') ?? '';
 
-    // ポート 8080/8765 は CloudFront が転送するため全 IP に開放が必要。
-    // CloudFront マネージドプレフィックスリスト (pl-58a04531) は 55+ エントリを持つため
-    // 2 ルール分で 110 スロット消費し、SG デフォルト上限 60 を超えてしまう。
-    // 代替: X-Origin-Verify カスタムヘッダー検証で Confused Deputy 対策を行う。
-    // SSH(22)/RTMP(1935)/React dev(3000) は廃止。EC2 管理は SSM Session Manager で行う。
+    // CloudFront マネージドプレフィックスリスト (ap-northeast-1: pl-58a04531) を使用。
+    // ポート範囲 8080-8765 を 1 ルールにまとめることで SG スロット消費を最小化。
+    // EC2 管理は SSM Session Manager で行う。
+    const cfPLId = 'pl-58a04531'; // CloudFront Managed Prefix List (ap-northeast-1)
     const sg = new ec2.SecurityGroup(this, 'Sg', { vpc, description: 'yolov8-seg' });
-    sg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8080), 'API (CloudFront proxy)');
-    sg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(8765), 'WebSocket (CloudFront proxy)');
+    sg.addIngressRule(ec2.Peer.prefixList(cfPLId), ec2.Port.tcpRange(8080, 8765), 'CloudFront PL (8080-8765)');
 
     // ECRリポジトリ（Mac でビルドしたイメージの置き場。名前固定で scripts から参照）
     const ecrRepo = new ecr.Repository(this, 'EcrRepo', {

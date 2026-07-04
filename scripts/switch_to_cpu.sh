@@ -1,5 +1,5 @@
 #!/bin/bash
-# GPU推論が終わったとき: g4dn.xlarge → t3.large に戻す
+# GPU推論が終わったとき: g5.2xlarge → t3.large に戻す
 # Usage: ./switch_to_cpu.sh [INSTANCE_ID]
 REGION=${AWS_DEFAULT_REGION:-ap-northeast-1}
 STACK_NAME=${STACK_NAME:-YoloSegStack}
