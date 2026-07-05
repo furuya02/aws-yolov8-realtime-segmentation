@@ -289,7 +289,7 @@ export default function VideoCanvas({ wsUrl, token, isStreamer }: Props) {
               ref={cameraRef}
               muted playsInline
               style={{
-                width: '100%', aspectRatio: '16/9',
+                width: '100%', height: 'auto',
                 background: '#111', border: '1px solid #d1d5db',
                 display: source === 'camera' ? 'block' : 'none',
               }}
@@ -299,13 +299,13 @@ export default function VideoCanvas({ wsUrl, token, isStreamer }: Props) {
               ref={mp4Ref}
               controls
               style={{
-                width: '100%', aspectRatio: '16/9',
+                width: '100%', height: 'auto',
                 background: '#111', border: '1px solid #d1d5db',
                 display: source === 'mp4' ? 'block' : 'none',
               }}
             />
             {source === 'none' && (
-              <div style={{ width: '100%', aspectRatio: '16/9', background: '#111', border: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '100%', aspectRatio: '4/3', background: '#111', border: '1px solid #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ color: '#4b5563', fontSize: 13 }}>カメラまたは MP4 を選択</span>
               </div>
             )}
@@ -319,7 +319,7 @@ export default function VideoCanvas({ wsUrl, token, isStreamer }: Props) {
           <canvas
             ref={canvasRef}
             width={640} height={480}
-            style={{ width: '100%', aspectRatio: '16/9', background: '#111', border: '1px solid #d1d5db', display: 'block' }}
+            style={{ width: '100%', height: 'auto', background: '#111', border: '1px solid #d1d5db', display: 'block' }}
           />
         </div>
       </div>
